@@ -18,6 +18,8 @@ namespace Archipelago.MultiClient.Net
         public static ArchipelagoSession CreateSession(Uri uri)
         {
             var socket = new ArchipelagoSocketHelper(uri);
+            // must be created first, so its clock is paused before any of the helpers below starts processing a received packet
+            var serverResponseTimeout = new ServerResponseTimeout(socket, ArchipelagoSession.ArchipelagoConnectionTimeoutInSeconds);
             var dataPackageCache = new DataPackageCache(socket);
             var connectionInfo = new ConnectionInfoHelper(socket);
             var players = new PlayerHelper(socket, connectionInfo);
@@ -29,7 +31,7 @@ namespace Archipelago.MultiClient.Net
             var messageLog = new MessageLogHelper(socket, itemInfoResolver, players, connectionInfo);
             var createHints = new HintsHelper(socket, players, locations, roomState, dataStorage);
 
-            return new ArchipelagoSession(socket, items, locations, players, roomState, connectionInfo, dataStorage, messageLog, createHints);
+            return new ArchipelagoSession(socket, items, locations, players, roomState, connectionInfo, dataStorage, messageLog, createHints, serverResponseTimeout);
         }
 
 		/// <summary>

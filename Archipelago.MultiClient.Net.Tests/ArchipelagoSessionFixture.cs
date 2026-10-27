@@ -112,6 +112,60 @@ namespace Archipelago.MultiClient.Net.Tests
 		}
 
 		[Test]
+		public void Should_not_count_time_spent_loading_the_data_package_cache_towards_the_timeout()
+		{
+			var socket = Substitute.For<IArchipelagoSocketHelper>();
+			var fileSystemDataPackageProvider = Substitute.For<IFileSystemDataPackageProvider>();
+
+			// a cache that takes longer to load than the timeout, like a big room on a slow machine
+			fileSystemDataPackageProvider.TryGetDataPackage(Arg.Any<string>(), Arg.Any<string>(), out _)
+				.Returns(x => {
+					Thread.Sleep(2000);
+					x[2] = new GameData { Checksum = "Checksum1" };
+					return true;
+				});
+
+			var session = CreateTestSession(socket, fileSystemDataPackageProvider, serverResponseTimeoutInSeconds: 1);
+
+			var connectedPacket = new ConnectedPacket
+			{
+				LocationsChecked = Array.Empty<long>(),
+				MissingChecks = Array.Empty<long>(),
+				Players = Array.Empty<NetworkPlayer>(),
+				SlotData = new Dictionary<string, object>(0),
+				SlotInfo = new Dictionary<int, NetworkSlot>(0)
+			};
+
+			SetupRoomInfoPacket(socket, new RoomInfoPacket {
+				Games = new[] { "Game1" },
+				DataPackageChecksums = new Dictionary<string, string> { { "Game1", "Checksum1" } }
+			});
+			SetupLoginResultPacket(socket, connectedPacket);
+
+			var result = session.TryConnectAndLogin("", "", ItemsHandlingFlags.NoItems);
+
+			Assert.That(result.Successful, Is.True);
+		}
+
+		[Test]
+		public void Should_still_timeout_when_server_does_not_respond_while_processing_time_is_excluded()
+		{
+			var socket = Substitute.For<IArchipelagoSocketHelper>();
+			var fileSystemDataPackageProvider = Substitute.For<IFileSystemDataPackageProvider>();
+
+			var session = CreateTestSession(socket, fileSystemDataPackageProvider, serverResponseTimeoutInSeconds: 1);
+
+			SetupRoomInfoPacket(socket, new RoomInfoPacket { Games = Array.Empty<string>() });
+
+			var result = session.TryConnectAndLogin("", "", ItemsHandlingFlags.NoItems);
+
+			socket.Received().SendPacket(Arg.Any<ConnectPacket>());
+
+			Assert.That(result.Successful, Is.False);
+			Assert.That(((LoginFailure)result).Errors.First(), Is.EqualTo("Connection timed out."));
+		}
+
+		[Test]
 		public void Should_add_correct_properties_to_login_successful()
 		{
 			var socket = Substitute.For<IArchipelagoSocketHelper>();
@@ -182,8 +236,12 @@ namespace Archipelago.MultiClient.Net.Tests
 		}
 
 		static ArchipelagoSession CreateTestSession(IArchipelagoSocketHelper socket,
-			IFileSystemDataPackageProvider fileSystemDataPackageProvider)
+			IFileSystemDataPackageProvider fileSystemDataPackageProvider, int? serverResponseTimeoutInSeconds = null)
 		{
+			// created first like in ArchipelagoSessionFactory, so time spent in the helpers below doesn't count towards it
+			var serverResponseTimeout = serverResponseTimeoutInSeconds.HasValue
+				? new ServerResponseTimeout(socket, serverResponseTimeoutInSeconds.Value)
+				: null;
 			var dataPackageCache = new DataPackageCache(socket, fileSystemDataPackageProvider);
 			var connectionInfo = new ConnectionInfoHelper(socket);
 			var itemInfoResolver = new ItemInfoResolver(dataPackageCache, connectionInfo);
@@ -195,7 +253,7 @@ namespace Archipelago.MultiClient.Net.Tests
 			var messageLog = new MessageLogHelper(socket, itemInfoResolver, players, connectionInfo);
 			var createHints = new HintsHelper(socket, players, locations, roomState, dataStorage);
 
-			return new ArchipelagoSession(socket, items, locations, players, roomState, connectionInfo, dataStorage, messageLog, createHints);
+			return new ArchipelagoSession(socket, items, locations, players, roomState, connectionInfo, dataStorage, messageLog, createHints, serverResponseTimeout);
 		}
 
 		static void SetupLoginResultPacket(IArchipelagoSocketHelper socket, ArchipelagoPacketBase loginResultPacket) =>
