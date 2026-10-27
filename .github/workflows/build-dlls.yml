@@ -37,6 +37,7 @@ jobs:
         path: |
           Archipelago.MultiClient.Net/bin/Release/*/Archipelago.MultiClient.Net.dll
           Archipelago.MultiClient.Net/bin/Release/*/Archipelago.MultiClient.Net.pdb
+          Archipelago.MultiClient.Net/bin/Release/*/websocket-sharp.dll
 
     - name: Run Tests (.net 3.5)
       run: dotnet test Archipelago.MultiClient.Net.Tests/bin/Release/net471/Archipelago.MultiClient.Net.Tests.dll
