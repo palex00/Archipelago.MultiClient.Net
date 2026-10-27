@@ -118,12 +118,27 @@ namespace Archipelago.MultiClient.Net.Helpers
             using (var readStream = new MemoryStream(buffer.Length))
             {
 	            WebSocketReceiveResult result;
+	            var receiveCalls = 0;
 	            do
 	            {
-		            result = await Socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+		            try
+		            {
+			            result = await Socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+			            receiveCalls++;
+		            }
+		            catch (Exception e)
+		            {
+			            ConnectionDiagnostics.Log($"socket: ReceiveAsync threw after {readStream.Length} bytes of the current message in {receiveCalls} successful reads, " +
+				            $"socket state {Socket.State}, close status {Socket.CloseStatus?.ToString() ?? "none"} '{Socket.CloseStatusDescription}', " +
+				            $"{ConnectionDiagnostics.ThreadPoolState()}, exception:{Environment.NewLine}{e}");
+			            throw;
+		            }
 
 		            if (result.MessageType == WebSocketMessageType.Close)
 		            {
+			            ConnectionDiagnostics.Log($"socket: server sent Close after {readStream.Length} bytes of the current message: " +
+				            $"{result.CloseStatus?.ToString() ?? "none"} '{result.CloseStatusDescription}'");
+
 			            try
 			            {
 				            await Socket.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, CancellationToken.None);
@@ -358,6 +373,8 @@ namespace Archipelago.MultiClient.Net.Helpers
 		/// <param name="e">the exception that occured</param>
         protected void OnError(Exception e)
         {
+	        ConnectionDiagnostics.Log($"socket: reporting error:{Environment.NewLine}{e}");
+
             try
             {
                 if (ErrorReceived != null)
