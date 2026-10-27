@@ -84,17 +84,30 @@ namespace Archipelago.MultiClient.Net.DataPackage
         List<string> GetCacheInvalidatedGamesByChecksum(RoomInfoPacket packet)
         {
 			var gamesNeedingUpdating = new List<string>();
+			var totalStart = ConnectionDiagnostics.ElapsedMilliseconds;
 
 	        foreach (var game in packet.Games)
 	        {
+		        var start = ConnectionDiagnostics.ElapsedMilliseconds;
+
 		        if (packet.DataPackageChecksums != null
 				            && packet.DataPackageChecksums.TryGetValue(game, out var checksum)
 				            && FileSystemDataPackageProvider.TryGetDataPackage(game, checksum, out var cachedGameData)
 				            && cachedGameData.Checksum == checksum)
+		        {
+			        var loaded = ConnectionDiagnostics.ElapsedMilliseconds;
 					inMemoryCache[game] = new GameDataLookup(cachedGameData);
+					ConnectionDiagnostics.Log($"cache: '{game}' read+parsed in {loaded - start}ms, lookup built in {ConnectionDiagnostics.ElapsedMilliseconds - loaded}ms " +
+						$"({cachedGameData.ItemLookup.Count} items, {cachedGameData.LocationLookup.Count} locations)");
+		        }
 				else
+		        {
+			        ConnectionDiagnostics.Log($"cache: '{game}' not cached (checked in {ConnectionDiagnostics.ElapsedMilliseconds - start}ms), requesting it");
 			        gamesNeedingUpdating.Add(game);
+		        }
 	        }
+
+	        ConnectionDiagnostics.Log($"cache: {packet.Games.Length} games handled in {ConnectionDiagnostics.ElapsedMilliseconds - totalStart}ms, {gamesNeedingUpdating.Count} to request");
 
 	        return gamesNeedingUpdating;
         }

@@ -39,6 +39,8 @@ namespace Archipelago.MultiClient.Net
 		/// </summary>
 		public void Start(Action timeoutAction)
 		{
+			ConnectionDiagnostics.Log($"timeout: Start (processing a packet: {processingPacket})");
+
 			lock (padlock)
 			{
 				onTimeout = timeoutAction;
@@ -52,6 +54,8 @@ namespace Archipelago.MultiClient.Net
 
 		public void Stop()
 		{
+			ConnectionDiagnostics.Log("timeout: Stop");
+
 			lock (padlock)
 			{
 				onTimeout = null;
@@ -61,6 +65,8 @@ namespace Archipelago.MultiClient.Net
 
 		public void Pause()
 		{
+			ConnectionDiagnostics.Log($"timeout: Pause (waiting: {onTimeout != null})");
+
 			lock (padlock)
 			{
 				processingPacket = true;
@@ -70,6 +76,8 @@ namespace Archipelago.MultiClient.Net
 
 		public void Resume()
 		{
+			ConnectionDiagnostics.Log($"timeout: Resume (waiting: {onTimeout != null})");
+
 			lock (padlock)
 			{
 				processingPacket = false;
@@ -111,6 +119,8 @@ namespace Archipelago.MultiClient.Net
 				onTimeout = null;
 				Disarm();
 			}
+
+			ConnectionDiagnostics.Log($"timeout: EXPIRED, {ConnectionDiagnostics.ThreadPoolState()}");
 
 			timeoutAction();
 		}

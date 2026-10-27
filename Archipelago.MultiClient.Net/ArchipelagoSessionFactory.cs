@@ -17,6 +17,10 @@ namespace Archipelago.MultiClient.Net
         /// </param>
         public static ArchipelagoSession CreateSession(Uri uri)
         {
+            var assembly = typeof(ArchipelagoSession).Assembly;
+            ConnectionDiagnostics.Log($"========== CreateSession({uri}) using {assembly.FullName} from '{assembly.Location}', " +
+                $"runtime {Environment.Version}, {Environment.ProcessorCount} processors, {ConnectionDiagnostics.ThreadPoolState()}");
+
             var socket = new ArchipelagoSocketHelper(uri);
             // must be created first, so its clock is paused before any of the helpers below starts processing a received packet
             var serverResponseTimeout = new ServerResponseTimeout(socket, ArchipelagoSession.ArchipelagoConnectionTimeoutInSeconds);

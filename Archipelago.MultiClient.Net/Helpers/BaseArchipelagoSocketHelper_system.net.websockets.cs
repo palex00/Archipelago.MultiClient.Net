@@ -78,6 +78,7 @@ namespace Archipelago.MultiClient.Net.Helpers
             while (Socket.State == WebSocketState.Open)
             {
                 string message = null;
+                var waitStart = ConnectionDiagnostics.ElapsedMilliseconds;
 
                 try
                 {
@@ -85,9 +86,11 @@ namespace Archipelago.MultiClient.Net.Helpers
                 }
                 catch (Exception e)
                 {
+	                ConnectionDiagnostics.Log($"socket: reading a message failed: {e.GetBaseException().Message}");
                     OnError(e);
                 }
 
+                ConnectionDiagnostics.Log($"socket: received message of {message?.Length ?? 0} chars after {ConnectionDiagnostics.ElapsedMilliseconds - waitStart}ms of reading/waiting, {ConnectionDiagnostics.ThreadPoolState()}");
                 OnMessageReceived(message);
 
             }
@@ -261,7 +264,8 @@ namespace Archipelago.MultiClient.Net.Helpers
                 throw new ArchipelagoSocketClosedException();
             
             var packets = packetList.ToArray();
-            
+            ConnectionDiagnostics.Log($"socket: sending {string.Join(", ", packets.Select(p => p.PacketType.ToString()).ToArray())}");
+
             var packetAsJson = JsonConvert.SerializeObject(packets);
             var messageBuffer = Encoding.UTF8.GetBytes(packetAsJson);
             var messagesCount = (int)Math.Ceiling((double)messageBuffer.Length / bufferSize);
@@ -318,6 +322,7 @@ namespace Archipelago.MultiClient.Net.Helpers
                 if (!string.IsNullOrEmpty(message) && PacketReceived != null)
                 {
 	                List<ArchipelagoPacketBase> packets = null;
+	                var deserializeStart = ConnectionDiagnostics.ElapsedMilliseconds;
 
 					try
 	                {
@@ -331,8 +336,14 @@ namespace Archipelago.MultiClient.Net.Helpers
                     if (packets == null)
                         return;
 
+                    ConnectionDiagnostics.Log($"socket: deserialized {string.Join(", ", packets.Select(p => p.PacketType.ToString()).ToArray())} in {ConnectionDiagnostics.ElapsedMilliseconds - deserializeStart}ms");
+
                     foreach (var packet in packets)
+                    {
+	                    var handleStart = ConnectionDiagnostics.ElapsedMilliseconds;
                         PacketReceived(packet);
+	                    ConnectionDiagnostics.Log($"socket: all handlers done with {packet.PacketType} in {ConnectionDiagnostics.ElapsedMilliseconds - handleStart}ms");
+                    }
                 }
             }
             catch (Exception e)

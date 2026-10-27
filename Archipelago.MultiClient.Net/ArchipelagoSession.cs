@@ -195,6 +195,8 @@ namespace Archipelago.MultiClient.Net
 		
         void Socket_PacketReceived(ArchipelagoPacketBase packet)
         {
+	        ConnectionDiagnostics.Log($"session: handling {packet.PacketType} (all other handlers are done with it)");
+
             switch (packet)
             {
                 case ConnectedPacket _:
@@ -236,14 +238,17 @@ namespace Archipelago.MultiClient.Net
             {
                 try
                 {
+	                ConnectionDiagnostics.Log("ConnectAsync: opening socket");
                     var task = Socket.ConnectAsync();
                     task.Wait(TimeSpan.FromSeconds(ArchipelagoConnectionTimeoutInSeconds));
+	                ConnectionDiagnostics.Log($"ConnectAsync: socket open task completed: {task.IsCompleted}, {ConnectionDiagnostics.ThreadPoolState()}");
 
 					if (!task.IsCompleted)
                         roomInfoPacketTask.TrySetCanceled();
                 }
-                catch (AggregateException)
+                catch (AggregateException e)
                 {
+	                ConnectionDiagnostics.Log($"ConnectAsync: opening socket failed: {e.GetBaseException()}");
                     roomInfoPacketTask.TrySetCanceled();
                 }
             });
@@ -271,7 +276,9 @@ namespace Archipelago.MultiClient.Net
 
             try
             {
+	            ConnectionDiagnostics.Log("LoginAsync: sending Connect");
 	            Socket.SendPacket(BuildConnectPacket(name, password, version, requestSlotData));
+	            ConnectionDiagnostics.Log("LoginAsync: Connect sent");
             }
             catch (ArchipelagoSocketClosedException)
             {
@@ -340,6 +347,7 @@ namespace Archipelago.MultiClient.Net
                 return new LoginFailure("Socket closed unexpectedly.");
             }
 #else
+            ConnectionDiagnostics.Log($"TryConnectAndLogin: start, {ConnectionDiagnostics.ThreadPoolState()}");
             var task = ConnectAsync();
 
             var roomInfoSource = roomInfoPacketTask;
@@ -352,6 +360,8 @@ namespace Archipelago.MultiClient.Net
             }
             catch (AggregateException e)
             {
+	            ConnectionDiagnostics.Log($"TryConnectAndLogin: connect phase failed: {e.GetBaseException()}");
+
 	            if (e.GetBaseException() is OperationCanceledException)
 		            return new LoginFailure("Connection timed out.");
 
@@ -362,7 +372,11 @@ namespace Archipelago.MultiClient.Net
 	            serverResponseTimeout.Stop();
             }
 
-			return LoginAsync(game, name, itemsHandlingFlags, version, tags, uuid, password, requestSlotData).Result;
+            ConnectionDiagnostics.Log($"TryConnectAndLogin: RoomInfo handled, logging in, {ConnectionDiagnostics.ThreadPoolState()}");
+			var result = LoginAsync(game, name, itemsHandlingFlags, version, tags, uuid, password, requestSlotData).Result;
+            ConnectionDiagnostics.Log($"TryConnectAndLogin: login result: {(result is LoginFailure failure ? string.Join(", ", failure.Errors) : "successful")}");
+
+			return result;
 #endif
         }
 

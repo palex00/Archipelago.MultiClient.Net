@@ -71,24 +71,29 @@ namespace Archipelago.MultiClient.Net.Helpers
 				var errors = new List<Exception>(0);
 				try
 				{
-
+					ConnectionDiagnostics.Log($"socket: trying {uri.AsWss()}");
 					await Socket.ConnectAsync(uri.AsWss(), CancellationToken.None);
+					ConnectionDiagnostics.Log($"socket: wss state {Socket.State}");
 
 					if (Socket.State == WebSocketState.Open)
 						return;
 				}
 				catch(Exception e)
 				{
+					ConnectionDiagnostics.Log($"socket: wss failed: {e.GetBaseException().Message}");
 					errors.Add(e);
 					Socket = CreateWebSocket();
 				}
 
 				try
 				{
+					ConnectionDiagnostics.Log($"socket: trying {uri.AsWs()}");
 					await Socket.ConnectAsync(uri.AsWs(), CancellationToken.None);
+					ConnectionDiagnostics.Log($"socket: ws state {Socket.State}");
 				}
 				catch (Exception e)
 				{
+					ConnectionDiagnostics.Log($"socket: ws failed: {e.GetBaseException().Message}");
 					errors.Add(e);
 
 					OnError(new AggregateException(errors));
