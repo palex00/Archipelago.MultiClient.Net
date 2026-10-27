@@ -1,0 +1,50 @@
+name: Build DLLs
+
+on:
+  push:
+    branches-ignore: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '6.0.x'
+
+    - name: setup-msbuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup NuGet.exe for use with actions
+      uses: NuGet/setup-nuget@v2.0.1
+
+    - name: Restore NuGet Packages
+      run: nuget restore Archipelago.MultiClient.Net.sln
+
+    - name: Build Library
+      run: msbuild Archipelago.MultiClient.Net.sln /property:Configuration=Release
+
+    - name: Upload DLLs
+      uses: actions/upload-artifact@v4
+      with:
+        name: Archipelago.MultiClient.Net-dlls
+        path: |
+          Archipelago.MultiClient.Net/bin/Release/*/Archipelago.MultiClient.Net.dll
+          Archipelago.MultiClient.Net/bin/Release/*/Archipelago.MultiClient.Net.pdb
+
+    - name: Run Tests (.net 3.5)
+      run: dotnet test Archipelago.MultiClient.Net.Tests/bin/Release/net471/Archipelago.MultiClient.Net.Tests.dll
+
+    - name: Run Tests (.net 4.0)
+      run: dotnet test Archipelago.MultiClient.Net.Tests/bin/Release/net472/Archipelago.MultiClient.Net.Tests.dll
+
+    - name: Run Tests (.net 4.5)
+      run: dotnet test Archipelago.MultiClient.Net.Tests/bin/Release/net47/Archipelago.MultiClient.Net.Tests.dll
+
+    - name: Run Tests (.net standard 2.0)
+      run: dotnet test Archipelago.MultiClient.Net.Tests/bin/Release/net48/Archipelago.MultiClient.Net.Tests.dll
