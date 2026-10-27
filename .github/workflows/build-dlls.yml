@@ -27,7 +27,8 @@ jobs:
       run: nuget restore Archipelago.MultiClient.Net.sln
 
     - name: Build Library
-      run: msbuild Archipelago.MultiClient.Net.sln /property:Configuration=Release
+      # the version is set at build time for releases, the mod references the 6.7.1.0 that NuGet ships
+      run: msbuild Archipelago.MultiClient.Net.sln /property:Configuration=Release /property:Version=6.7.1 /property:AssemblyVersion=6.7.1.0 /property:FileVersion=6.7.1.0
 
     - name: Upload DLLs
       uses: actions/upload-artifact@v4
